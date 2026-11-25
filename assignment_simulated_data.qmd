@@ -10,6 +10,9 @@ editor: visual
 ### 1. Simulation code
 
 ```{r}
+
+olink_inflammation_cytokines_1000 = read.csv("olink_inflammation_cytokines_1000.csv", check.names = FALSE)
+
 set.seed(1)
 n = 30      # Sample size
 ng = 2      # Number of groups
