@@ -1,0 +1,174 @@
+---
+title: "Untitled"
+format: html
+---
+
+Random number from a Uniform distribution
+
+```{r}
+#taking a random number - this distribution goes from 0 - 1
+runif(1, min=0, max = 10)
+#First value is how many random numbers you want
+set.seed(5)
+runif(5)
+```
+
+How for loops work
+```{r}
+set.seed(1)
+r = NULL
+for (i in 1:500) {
+    #saving it into an r variable
+    r[i]=runif(1)
+}
+r
+
+hist(r, col = "green", breaks= seq(0,1,0.05))
+```
+
+Sampling
+```{r}
+#replace is like rolling a die --> bootstraping
+set.seed(1)
+sample(1:6,7, replace = TRUE)
+```
+
+
+```{r}
+set.seed(1)
+#a = how many numbers, b = mean and c = standard deviation
+r = rnorm(10000, 0, 1)
+hist(r, col="green", breaks=50) #breaking the data into 50 bins
+```
+
+Checking 
+```{r}
+sum(r<(-1.96) | r>1.96)/length(r)
+#no we get proportion of values in the tails
+```
+
+Create a random dataset
+
+```{r}
+set.seed(1)
+n = 4 #sample size
+ng = 2 #number of groups
+p = 1000 #number of variables 
+
+r = rnorm(n*ng*p, mean = 4, sd =2)
+
+#putting data into a matrix
+data = matrix(r, p, n*ng)
+data
+
+#put names on columns
+#paste when I want to paste some numbers in a vector
+#sep for separator
+colnames(data) = c(paste("HD", 1:4, sep=""), paste("D", 1:4, sep=""))
+rownames(data) = c(paste("protein", 1:p, sep=""))
+data
+```
+
+T test
+```{r}
+group=c(rep("H",n), rep("D", n))
+group=factor(group, levels= c("H","D"))
+t.test(data[1,]~group, var.equal=TRUE)
+```
+
+For loop
+```{r}
+set.seed(1)
+pvals=NULL
+for (i in 1:p){
+    pvals[i]= t.test(data[i,]~group, var.equal=TRUE)$p.value
+}
+
+pvals
+hist(pvals, col = "green", breaks= seq(0, 1, 0.05))
+```
+
+```{r}
+set.seed(1)
+data[1:100, 5:8] = data[1:100, 5:8] + 10 #gets skewed
+pvals=NULL
+for (i in 1:p){
+    pvals[i]= t.test(data[i,]~group, var.equal=TRUE)$p.value
+}
+
+pvals
+hist(pvals, col = "green", breaks= seq(0, 1, 0.05))
+```
+
+How to create a dataset with integers?
+#Poisson distribution
+```{r}
+r = rpois(1000, 4) #mean is equal to 4
+
+hist(r, col="green")
+```
+
+```{r}
+r = rpois(1000, 25) #mean is equal to 4
+
+hist(r, col="green")
+```
+
+Central limit theorem
+--> sample size should be at least 30 or 50
+```{r}
+n_sim=10000
+n=5
+mu=NULL
+for (i in 1:n_sim){
+    rolls=sample(1:6, n, replace=TRUE)
+    mu[i]=mean(rolls)
+}
+hist(mu, breaks=30)
+```
+Exponential distribution - can see what sample size you need to fullfill normal distribution
+```{r}
+n_sim=10000
+n=50
+mu=NULL
+for (i in 1:n_sim){
+    rolls=rexp(n,3)
+    mu[i]=mean(rolls)
+}
+hist(mu, breaks=30)
+```
+
+Type 1 and type 2 errors
+```{r}
+n <- 4
+SD <- 2
+mu <- 10
+n_sim <- 10000
+pvals <- numeric(n_sim)   # preallocate instead of NULL
+set.seed(2)
+
+for (i in 1:n_sim) {
+    r  <- rnorm(n, mu, SD)
+    r2 <- rnorm(n, mu, SD)
+    pvals[i] <- t.test(r, r2, var.equal = TRUE)$p.value
+}
+hist(pvals)
+```
+
+When the null hypothesis is accepted - you get equal distribution of p-values
+
+```{r}
+#we have 490 due to chance
+sum(pvals<0.05)
+```
+
+Adjusting p-values
+```{r}
+p.adjust(pvals, method = "bonferroni")
+sum(p<0.05)
+```
+
+```{r}
+p.adjust(pvals, method = "BH")
+sum(p<0.05)
+```
