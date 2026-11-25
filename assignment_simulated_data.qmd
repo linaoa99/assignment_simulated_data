@@ -7,9 +7,17 @@ editor: visual
 
 ## Assignment Simulated Data
 
-### 1. Simulation code
+### 1. Load Cytokine Dataset
 
-```{r}
+```{r Load Cytokine Dataset}
+olink_inflammation_cytokines_1000 = read.csv("olink_inflammation_cytokines_1000.csv")
+```
+
+
+### 2. Simulate values for HD and Disease
+
+```{r Simulation code}
+
 set.seed(1)
 n = 30      # Sample size
 ng = 2      # Number of groups
@@ -25,8 +33,53 @@ data
 colnames(data) = c(paste("HD", 1:n, sep=""), paste("Disease", 1:n, sep=""))
 rownames(data) = c(paste(olink_inflammation_cytokines_1000$Assay, 1:p, sep=""))
 data
+
+colnames(data) = c(paste("HD", 1:n, sep=""), paste("Disease", 1:n, sep=""))
+rownames(data) = paste(olink_inflammation_cytokines_1000$Assay, 1:p, sep="")
+
+hd_cols  = 1:n
+dis_cols = (n + 1):(n * ng)
 ```
 
 ### 2. Introduce outliers and errors
+
+#### Increase SD for all Disease and select a certain groups of cytokines to have higher normalized values
+```{r Increase SD and values in Disease}
+set.seed(2)                                   # separate seed for the manipulation
+cat_vec = olink_inflammation_cytokines_1000$Category
+
+# Mean NPX increase in Disease per category (categories not listed stay at 0)
+cat_shift = c("Chemokine"          = 2.0,
+              "Interleukin"        = 1.5,
+              "Acute phase/innate" = 2.5,
+              "TNF superfamily"    = 1.0)
+
+delta = cat_shift[cat_vec]                    # NA for unlisted categories
+delta[is.na(delta)] = 0
+delta = as.numeric(delta)
+
+# Protein-to-protein variability around the category shift
+up = delta > 0
+delta[up] = delta[up] + rnorm(sum(up), mean = 0, sd = 0.3)
+
+
+# Apply shift + inflate SD in the Disease group
+
+sd_mult = 1.5                    # SD inflation for all Disease values
+
+dis      = data[, dis_cols]
+dis_mean = rowMeans(dis)         # each protein's own disease mean
+
+# Scale deviations around the protein mean (means stay put), then add the shift
+dis = dis_mean + (dis - dis_mean) * sd_mult + delta
+data[, dis_cols] = dis
+
+# Ground truth for validation
+truth = data.frame(Protein   = rownames(data),
+                   Category  = cat_vec,
+                   TrueDelta = delta,
+                   Up        = up)
+
+```
 
 ### 3. Review
