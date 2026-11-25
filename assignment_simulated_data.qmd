@@ -17,7 +17,8 @@ set.seed(1)
 n = 30      # Sample size
 ng = 2      # Number of groups
 p = 1000    # Number of variables 
-
+groups=c(rep("A",n),rep("B",n))   # TRUE groups: A = healthy, B = disease
+groupB=(n+1):(n*ng)                # Columns belonging to the disease group
 r = rnorm(n*ng*p, mean = 4, sd =2)
 
 # Putting data into a matrix
