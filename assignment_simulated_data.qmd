@@ -141,7 +141,7 @@ tdata <- tdata %>%
 names(tdata)
 ```
 
-### 6. ANONYMIZE AND EXPORT DATA
+### 5. ANONYMIZE AND EXPORT DATA
 
 ```{r}
 
@@ -205,4 +205,4 @@ write.csv(
 
 ```
 
-### 7. Review
+### 6. Review
