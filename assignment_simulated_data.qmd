@@ -19,9 +19,11 @@ olink_inflammation_cytokines_1000 = read.csv("olink_inflammation_cytokines_1000.
 ```{r Simulation code}
 
 set.seed(1)
+
+# Defining dataset
 n = 30      # Sample size
 ng = 2      # Number of groups
-p = 1000    # Number of variables 
+p = 1000    # Number of variables
 
 r = rnorm(n*ng*p, mean = 4, sd =2)
 
@@ -41,7 +43,7 @@ hd_cols  = 1:n
 dis_cols = (n + 1):(n * ng)
 ```
 
-### 2. Introduce outliers and errors
+### 3. Introduce outliers and errors
 
 #### Increase SD for all Disease and select a certain groups of cytokines to have higher normalized values
 ```{r Increase SD and values in Disease}
@@ -82,4 +84,4 @@ truth = data.frame(Protein   = rownames(data),
 
 ```
 
-### 3. Review
+### 4. Review
