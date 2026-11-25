@@ -84,7 +84,7 @@ truth = data.frame(Protein   = rownames(data),
 
 ```
 
-## 2. Introduce biomarkers and errors
+## 4. Introduce biomarkers and errors
 
 ```{r}
 # =====================================================
@@ -131,4 +131,78 @@ colnames(data)[outlier]
 colnames(data)[misdiag]
 ```
 
-### 4. Review
+```{r}
+data <- t(data)
+tdata <- as.data.frame(tdata)
+library(dplyr)
+
+tdata <- tdata %>%
+  mutate(DiseaseStatus = c(rep("Yes", 30), rep("No", 30)))
+names(tdata)
+```
+
+### 6. ANONYMIZE AND EXPORT DATA
+
+```{r}
+
+# Randomize patient order
+ord = sample(1:(n*ng))
+
+# Create anonymous patient IDs
+patient_id = paste("P", 1:(n*ng), sep="")
+
+# Create final dataset
+df = data.frame(
+  patient_id = patient_id,
+  group = group_obs[ord],
+  t(data[, ord]),
+  check.names = FALSE
+)
+
+# Remove original row names (HD1, Disease1, etc.)
+rownames(df) = NULL
+
+# Export dataset to share
+write.csv(df, "simulated_patients.csv", row.names = FALSE)
+
+
+# =====================================================
+# 4. SAVE GROUND TRUTH (DO NOT SHARE)
+# =====================================================
+
+# 4.1 Complete ground truth: all proteins and category effects
+write.csv(
+  truth,
+  "simulation_ground_truth.csv",
+  row.names = FALSE
+)
+
+# 4.2 Ground truth for the 10 specific biomarkers
+truth_biomarkers = data.frame(
+  protein = rownames(data)[biomarkers],
+  fc = fc,
+  direction = ifelse(fc > 0, "up in Disease", "down in Disease")
+)
+
+write.csv(
+  truth_biomarkers,
+  "simulation_ground_truth_biomarkers.csv",
+  row.names = FALSE
+)
+
+# 4.3 Ground truth for atypical patients
+atyp = data.frame(
+  old_name = colnames(data)[c(outlier, misdiag)],
+  new_id = patient_id[match(c(outlier, misdiag), ord)],
+  type = c("outlier", "misdiagnosed")
+)
+
+write.csv(
+  atyp,
+  "simulation_ground_truth_patients.csv",
+  row.names = FALSE
+)
+
+```
+
+### 7. Review
