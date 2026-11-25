@@ -8,7 +8,25 @@ editor: visual
 ## Assignment Simulated Data
 
 ### 1. Prepare df
+```{r}
+set.seed(1)
+n = 30 #sample size
+ng = 2 #number of groups
+p = 1000 #number of variables 
 
+r = rnorm(n*ng*p, mean = 4, sd =2)
+
+#putting data into a matrix
+data = matrix(r, p, n*ng)
+data
+
+#put names on columns
+#paste when I want to paste some numbers in a vector
+#sep for separator
+colnames(data) = c(paste("HD", 1:4, sep=""), paste("D", 1:4, sep=""))
+rownames(data) = c(paste("protein", 1:p, sep=""))
+data
+```
 ### 2. Simulation code
 
 ### 3. Introduce outliers and errors
