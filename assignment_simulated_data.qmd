@@ -1,0 +1,16 @@
+---
+title: "Assignment Simulated Data"
+author: "Lina, Ndeye Awa, Eva, Eleni, Linnea"
+format: html
+editor: visual
+---
+
+## Assignment Simulated Data
+
+### 1. Prepare df
+
+### 2. Simulation code
+
+### 3. Introduce outliers and errors
+
+### 4. Review
