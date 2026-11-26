@@ -1,25 +1,34 @@
 
 ---
-title: "Untitled"
+title: "data_analysis"
+author: "Lina, Ndeye Awa, Eva, Eleni, Linnea"
 format: html
 ---
-Library
+
+# Assignment: data analysis of simulated data
+
+## 0. Library
+
 ```{r}
 library(tidyverse)
+library(edgeR)
+library(ggrepel) 
+library(pheatmap)
+library(umap)
 ```
 
-Data import
-```{r}
-data <- read.csv2("analysis_of_other_data/scRNAseq_data_updated.csv", sep = ",")
+## 1. Data import & smaller fixes
 
-rownames(data) = data[,1]
+```{r}
+
+data_org <- read.csv2("analysis_of_other_data/scRNAseq_data_updated.csv", sep = ",")
+
+data <- data_org
+rownames(data) = data_org[,1]
 
 data <- data[,2:ncol(data)]
 
-```
-
-Transpose and add columns(patient, group, cell_id)
-```{r}
+## Transpose and add columns(patient, group, cell_id)
 t_data <- t(data) %>%
   as.data.frame() %>%
   mutate(
@@ -30,17 +39,13 @@ t_data <- t(data) %>%
   relocate(cell_id, patient, group)
 
 head(rownames(t_data)) 
-matrix_t_data <- as.matrix(t_data)
+
 ```
 
+## 2. QC
 
 ```{r}
-Group <- factor(t_data$group, levels = c("Control", "Disease")) # Define groups, we usually want HD first
-```
 
-QC
-
-```{r}
 # QC preparation
 
 # Keep only gene expression columns
@@ -48,9 +53,7 @@ expression_data <- t_data %>%
   select(-cell_id, -patient, -group)
 
 # Convert expression values to a numeric matrix
-expression_matrix <- as.matrix(
-  data.frame(lapply(expression_data, as.numeric))
-)
+expression_matrix <- as.matrix(expression_data)
 
 # Check dimensions
 dim(expression_matrix)
@@ -59,71 +62,94 @@ dim(expression_matrix)
 summary(as.vector(expression_matrix))
 any(is.na(expression_matrix))
 any(expression_matrix < 0)
-```
 
-QC
-```{r}
 # Calculate QC metrics for each cell
-
 qc_data <- data.frame(
-  cell_id = t_data$cell_id,
-  patient = t_data$patient,
-  group = t_data$group,
-
-  total_counts = rowSums(expression_matrix),
-
-  detected_genes = rowSums(expression_matrix > 0),
-
-  percent_zeros = rowMeans(expression_matrix == 0) * 100
+  cell_id        = t_data$cell_id,
+  patient        = t_data$patient,
+  group          = t_data$group,
+  total_counts   = rowSums(expression_matrix),
+  detected_genes = rowSums(expression_matrix > 0)
 )
 
-# Preview QC results
 head(qc_data)
-
-# Summary statistics
 summary(qc_data)
-```
+table(qc_data$group)
 
-```{r}
-# Distribution of detected genes
-ggplot(qc_data, aes(x = group, y = detected_genes, fill = group)) +
+
+# Identify potential outliers (1.5 x IQR rule, per group) – flag only, no filtering
+qc_data <- qc_data %>%
+  group_by(group) %>%
+  mutate(
+    potential_outlier =
+      detected_genes < quantile(detected_genes, 0.25) - 1.5 * IQR(detected_genes) |
+      detected_genes > quantile(detected_genes, 0.75) + 1.5 * IQR(detected_genes)
+  ) %>%
+  ungroup()
+
+# Number and percentage of potential outliers per group
+qc_data %>%
+  group_by(group) %>%
+  summarise(
+    n_cells     = n(),
+    n_outliers  = sum(potential_outlier),
+    pct_outliers = round(mean(potential_outlier) * 100, 2)
+  )
+
+# QC metrics by group
+qc_data %>%
+  select(group, total_counts, detected_genes) %>%
+  pivot_longer(-group, names_to = "metric", values_to = "value") %>%
+  mutate(metric = recode(metric,
+                         total_counts   = "Total counts per cell",
+                         detected_genes = "Detected genes per cell")) %>%
+  ggplot(aes(x = group, y = value, fill = group)) +
   geom_violin(trim = FALSE, alpha = 0.5) +
   geom_boxplot(width = 0.15, outlier.shape = NA) +
+  facet_wrap(~ metric, scales = "free_y") +
+  labs(title = "Quality control metrics by group", x = NULL, y = NULL) +
+  theme_minimal() +
+  theme(legend.position = "none")
+
+# total counts vs detected genes
+ggplot(qc_data, aes(x = total_counts, y = detected_genes, color = group)) +
+  geom_point(alpha = 0.5) +
   labs(
-    title = "Number of detected genes per cell",
-    x = "Group",
+    title = "Total counts vs detected genes",
+    x = "Total counts per cell",
     y = "Number of detected genes"
   ) +
-  theme_minimal() +
-  theme(legend.position = "none")
+  theme_minimal()
+
+
+patient_qc <- qc_data %>%
+  group_by(patient, group) %>%
+  summarise(
+    n_cells             = n(),
+    mean_detected_genes = mean(detected_genes),
+    mean_total_counts   = mean(total_counts),
+    .groups = "drop"
+  ) %>%
+  arrange(group, patient)
+
+patient_qc
+table(patient_qc$group)   # number of subjects per group
+
+
 ```
 
 
-```{r}
-# Distribution of percentage of zeros
-ggplot(qc_data, aes(x = group, y = percent_zeros, fill = group)) +
-  geom_violin(trim = FALSE, alpha = 0.5) +
-  geom_boxplot(width = 0.15, outlier.shape = NA) +
-  labs(
-    title = "Percentage of zero counts per cell",
-    x = "Group",
-    y = "Percentage of zeros (%)"
-  ) +
-  theme_minimal() +
-  theme(legend.position = "none")
-```
+## 3. Normalisation
 
 ```{r}
+
 # Patient and group from the cell names, e.g. "P01_control_cell001"
 parts = do.call(rbind, strsplit(colnames(data), "_"))
 meta  = data.frame(cell = colnames(data), patient = parts[,1], group = parts[,2])
 
-rownames(data)
-colnames(data)
-
 sum(rowSums(data) == 0) ## no rows/genes that are 0 everywhere (across all groups/subjects/cells)
 
-## first check cell-level normalisation and outliers, etc
+## Cell level: counts per 10,000, then log (used for the cell-level analyses in section 5)
 counts_per_cell = colSums(data)                           # Total counts per cell
 lognorm = log1p(t(t(data) / counts_per_cell) * 10000)     # Counts per 10,000, then log
 
@@ -135,80 +161,174 @@ hvg = names(sort(excess, decreasing = TRUE))[1:200]
 head(hvg, 20)
 
 
-# Sum the counts of all cells per patient -> 2000 genes x 30 patients
+# Patient level: sum the counts of all cells per patient -> 2000 genes x 30 patients
 pb = sapply(split(seq_len(ncol(data)), meta$patient), function(i) rowSums(data[, i]))
 pb_group = factor(meta$group[match(colnames(pb), meta$patient)], levels = c("control", "disease"))
 
-library(edgeR)
 dge = DGEList(pb, group = pb_group)
 dge = calcNormFactors(dge)                      # TMM normalisation
 
 keep = filterByExpr(dge, group = pb_group)
 sum(keep)                                        # Number of genes kept
 dge = dge[keep, , keep.lib.sizes = FALSE]
-dge = calcNormFactors(dge)                       # Redo TMM after filtering
-
-plotMDS(dge, col = ifelse(pb_group == "control", "blue", "red"), pch = 16)
+dge$samples                                      # Library sizes and TMM factors
 
 logcpm = cpm(dge, log = TRUE)    # genes x 30 patients, log2 CPM
+
+# Normalisation check: one box per patient, should sit at the same level
+boxplot(logcpm, las = 2, col = ifelse(pb_group == "control", "lightblue", "salmon"),
+        ylab = "log2 CPM", main = "Per subject after TMM normalisation")
+
+
 ```
 
+## 4. Patient-level data
+
 ```{r}
-# 3. Variance vs mean on normalized counts across the cells
-gene_vars = apply(norm_counts, 1, var) 
-gene_means = apply(norm_counts, 1, mean)
-plot(gene_means,gene_vars,log="xy") 
 
-# --------------------------------------------------------------------------
+# Variance vs mean on normalized counts across the subjects
+gene_vars = apply(logcpm, 1, var) 
+gene_means = apply(logcpm, 1, mean)
+plot(gene_means, gene_vars, log = "y", xlab = "Mean log2 CPM", ylab = "Variance across subjects")
 
-# 4. Find HVG (the ones with large dispersion)
-# We select for genes with a higher variation than the mean
+# MDS plot
+plotMDS(dge, col = ifelse(pb_group == "control", "blue", "red"), pch = 16)
 
-Dispersion=gene_vars/gene_means
-top2000names = names(sort(Dispersion, decreasing = TRUE))[1:2000]
-points(gene_means[top2000names],gene_vars[top2000names],cex=0.5,col="red")
-log_norm_counts_top2000=log_norm_counts[top2000names,] # Extract top 2000 genes
-dim(log_norm_counts_top2000)
+# PCA per patient (centred, so PC1 shows differences between patients)
+pca = prcomp(t(logcpm))
+var_explained = round(100 * pca$sdev^2 / sum(pca$sdev^2), 1)
 
-# --------------------------------------------------------------------------
+plot(pca$x[,1], pca$x[,2], col = ifelse(pb_group == "control", "blue", "red"), pch = 16,
+     xlab = paste0("PC1 (", var_explained[1], " %)"), ylab = paste0("PC2 (", var_explained[2], " %)"))
+text(pca$x[,1], pca$x[,2], labels = colnames(logcpm), pos = 3, cex = 0.7)
+legend("bottom", c("control", "disease"), col = c("blue", "red"), pch = 16, bty = "n", horiz = TRUE)
 
-# 5. Scaling (standardize values of HVG)
-scaled_data_top2000 = t(scale(t(log_norm_counts_top2000)))
-scaled_data_top2000[1:4,1:2]
 
-# --------------------------------------------------------------------------
+# Variance explained per PC
+barplot(var_explained, names.arg = seq_along(var_explained), xlab = "PCs",
+        ylab = "Proportion of variance (%)", col = "skyblue")
+
+
+# Unsupervised check: do the patients split into two groups without using the labels?
+set.seed(1)
+km_pat = kmeans(pca$x[, 1:5], centers = 2, nstart = 25)
+table(cluster = km_pat$cluster, label = pb_group)
+
 ```
 
+## 4b. Relabel P02 as control
+
+P02 is labelled disease, but in the patient PCA it sits among the controls, and k-means also puts it in the control cluster. We treat this as an intentional mislabelling and relabel P02 as control. Everything after this point uses the corrected labels.
+
 ```{r}
-# 6. PCA
-pca_res = prcomp(t(scaled_data_top2000), center = F, scale. = F)
 
-# Plot variance explained
-var_explained = (pca_res$sdev)^2
-var_explained_ratio = var_explained / sum(var_explained)
-# Bar chart of first 100 components
-barplot(var_explained_ratio[1:30],xlab = "PCs",
-        ylab = "Proportion of Variance",
-        col = "skyblue",names.arg = 1:30)
+# Keep the original labels for comparison
+pb_group_original = pb_group
+meta$group_original = meta$group
 
-# Extract the 10 first components
-pca_embed = pca_res$x[, 1:10]   # Because we need to use more than two, we choose the first 10 components (standard)
+# Relabel P02 as control: patient level (pseudobulk) and cell level
+pb_group[colnames(pb) == "P02"] = "control"
+meta$group[meta$patient == "P02"] = "control"
+dge$samples$group = pb_group
 
-# --------------------------------------------------------------------------
+table(original = pb_group_original, corrected = pb_group)   # one patient moved
+table(pb_group)                                              # now 15 control, 15 disease
 
-# 7. Clustering with K-means
-# Identify 7 clusters based on the first 10 PCs
-km = kmeans(pca_embed, centers = 7, nstart = 200)
-cluster=factor(km$cluster)
-cluster[1:3]
+# PCA again, now coloured by the corrected labels
+plot(pca$x[,1], pca$x[,2], col = ifelse(pb_group == "control", "blue", "red"), pch = 16,
+     xlab = paste0("PC1 (", var_explained[1], " %)"), ylab = paste0("PC2 (", var_explained[2], " %)"),
+     main = "Subjects, corrected labels")
+text(pca$x[,1], pca$x[,2], labels = colnames(logcpm), pos = 3, cex = 0.7)
+
 ```
 
+## 5. Cell-level analysis
+
 ```{r}
-library(umap)
+
+# PCA of the cells, on the 200 highly variable genes (scaled)
+pca_cells = prcomp(t(lognorm[hvg, ]), scale. = TRUE)
+var_cells = pca_cells$sdev^2 / sum(pca_cells$sdev^2)
+barplot(var_cells[1:30], names.arg = 1:30, xlab = "PCs", ylab = "Proportion of variance", col = "skyblue")
+
+pca_embed = pca_cells$x[, 1:10]   # first 10 components, used for the clustering
+
+# K-means: elbow plot to choose the number of clusters
+set.seed(1)
+wss = sapply(2:10, function(k) kmeans(pca_embed, centers = k, nstart = 10)$tot.withinss)
+plot(2:10, wss, type = "b", xlab = "Number of clusters (k)", ylab = "Within-cluster sum of squares")
+
+# K-means with 7 clusters
+set.seed(1)
+km = kmeans(pca_embed, centers = 7, nstart = 25)
+
+# Number the clusters by size (1 = largest), so the numbering is the same on every computer
+size_rank = rank(-table(km$cluster), ties.method = "first")
+cluster = factor(size_rank[as.character(km$cluster)])
+table(cluster)
+
+# PCA of the cells: coloured by cluster, and by group
+par(mfrow = c(1, 2))
+plot(pca_embed[,1], pca_embed[,2], pch = 16, cex = 0.4, col = rainbow(7)[cluster],
+     xlab = "PC1", ylab = "PC2", main = "Cells by cluster")
+legend("topright", paste("Cluster", levels(cluster)), col = rainbow(7), pch = 16, cex = 0.6, bty = "n")
+plot(pca_embed[,1], pca_embed[,2], pch = 16, cex = 0.4,
+     col = ifelse(meta$group == "control", "#2f6db380", "#c2412d80"),
+     xlab = "PC1", ylab = "PC2", main = "Cells by group")
+legend("topright", c("control", "disease"), col = c("#2f6db3", "#c2412d"), pch = 16, cex = 0.6, bty = "n")
+par(mfrow = c(1, 1))
+
+
+# PCA of the cells, coloured by subject
+plot(pca_embed[,1], pca_embed[,2], pch = 16, cex = 0.4,
+     col = rainbow(30)[as.integer(factor(meta$patient))],
+     xlab = "PC1", ylab = "PC2", main = "Cells by subject")
+
+
+# UMAP of the cells, on the same 10 PCs, coloured by cluster
 set.seed(43)
-umap_res <- umap(pca_embed, 
-                 n_neighbors = 30, min_dist=0.3)
-plot(umap_res$layout,pch=16,
-     cex=0.3,col=cluster,main="UMAP")
+umap_res <- umap(pca_embed,
+                 n_neighbors = 30, min_dist = 0.3)
+plot(umap_res$layout, pch = 16,
+     cex = 0.3, col = rainbow(7)[cluster], main = "UMAP",
+     xlab = "UMAP 1", ylab = "UMAP 2")
+legend("topright", paste("Cluster", levels(cluster)), col = rainbow(7), pch = 16, cex = 0.6, bty = "n")
+
+```
+
+## 6. Differential expression
+
+```{r}
+
+# Design + contrast (disease vs control), corrected labels from 4b
+designMatrix   <- model.matrix(~ 0 + group, data = data.frame(group = pb_group))
+contrastMatrix <- makeContrasts(groupdisease - groupcontrol, levels = designMatrix)
+
+# Fit model
+dge_disp <- estimateDisp(dge, designMatrix, robust = TRUE)
+fit <- glmQLFit(dge_disp, designMatrix, robust = TRUE)
+
+# Test
+res <- glmQLFTest(fit, contrast = contrastMatrix)
+res <- topTags(res, n = Inf)
+sigRes <- subset(res$table, FDR < 0.05 & abs(logFC) > 1)
+nrow(sigRes)
+
+# Volcano plot
+ggplot(res$table, aes(logFC, -log10(FDR),
+                      color = ifelse(FDR < 0.05 & abs(logFC) > 1, "darkred", "grey"))) +
+  geom_point() +
+  geom_vline(xintercept = c(-1, 1), linetype = "dotted") +
+  geom_hline(yintercept = -log10(0.05), linetype = "dotted") +
+  geom_text_repel(data = res$table[1:15, ], aes(label = rownames(res$table)[1:15]),
+                  color = "steelblue", size = 3) +
+  scale_colour_manual(values = c("darkred", "grey")) +
+  theme_minimal() + theme(legend.position = "none") +
+  labs(x = "Log2 fold change", y = "-log10 adjusted p-value")
+
+# Heatmap of the significant genes (same genes as in sigRes)
+pheatmap(logcpm[rownames(sigRes), ], scale = "row",
+         annotation_col = data.frame(group = pb_group, row.names = colnames(logcpm)),
+         main = "Significant genes, all 30 subjects (z-score per gene)")
 ```
 

@@ -5,29 +5,6 @@ format: html
 editor: visual
 ---
 
-Changes made:
-
-- Instead of whole category shifts of cytokines that are upregulated in diseased patients, I went with 10 known cytokines - Making it biologically more plausible and sticking within the 20 univariate biomarker limit as per assignment instructions. Sorry that this oversteps the original idea!
-
-<!-- -->
-
-- Changed which patient is mislabelled, to make it a bit harder to find
-
-- Added a submarker which is unregulated in 8 out of 30 disease patients, to make those stand out in “severity”
-
-- Added a combined marker of two proteins, which require more than univariate analysis
-
-- Made sure the extra markers that were already picked are now from synthetic proteins and not the real ones, to avoid overlap
-
-- Slightly changed the signal from 1.5 to 1.2 for sd_mult because this otherwise was too noisy and didn’t separate well in a PCA, even after removing the outlier. The t-test now also finds all biomarkers without false positives. 
-
-- Some minor cosmetic changes to streamline how it's all coded (like using dis_cols everywhere instead of D_cols and dis_cols in different places)
-
-Hope this is okay!!\
-The output of csv file is below, along with a quick review check and answer key.
-
-//Linnea
-
 ## Assignment Simulated Data
 
 ### 1. Load Cytokine Dataset
@@ -49,9 +26,6 @@ n = 30      # Sample size
 ng = 2      # Number of groups
 p = 1000    # Number of variables
 
-    ## prior code: r = rnorm(n*ng*p, mean = 4, sd =2) 
-    ## split this into mu_p and sd_p in order to get a less uniform distribution of values across the dataset
-
 # Baseline level: some are abundant, some low
 mu_p = rnorm(p, mean = 4, sd = 1.7)
 
@@ -59,10 +33,6 @@ mu_p = rnorm(p, mean = 4, sd = 1.7)
 sd_p = runif(p, min = 0.6, max = 1.4)
 
 # Putting data into a matrix
-
-    ## prior code: data = matrix(r, p, n*ng) 
-    ## instead combining mu_p and sd_p
-
 data = matrix(0, nrow = p, ncol = n*ng)
 for (i in 1:p){
   data[i,] = rnorm(n*ng, mean = mu_p[i], sd = sd_p[i])
@@ -261,7 +231,7 @@ write.csv(truth_proteins, "answer_key_proteins.csv", row.names = FALSE)
 write.csv(truth_patients, "answer_key_patients.csv", row.names = FALSE)
 ```
 
-### 7. Review
+### 7. Quick review
 
 Quick checks that the simulation behaves as intended, using the TRUE groups.
 
