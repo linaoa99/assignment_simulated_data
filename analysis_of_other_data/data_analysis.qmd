@@ -113,6 +113,45 @@ ggplot(qc_data, aes(x = group, y = percent_zeros, fill = group)) +
   theme(legend.position = "none")
 ```
 
+```{r}
+# Patient and group from the cell names, e.g. "P01_control_cell001"
+parts = do.call(rbind, strsplit(colnames(data), "_"))
+meta  = data.frame(cell = colnames(data), patient = parts[,1], group = parts[,2])
+
+rownames(data)
+colnames(data)
+
+sum(rowSums(data) == 0) ## no rows/genes that are 0 everywhere (across all groups/subjects/cells)
+
+## first check cell-level normalisation and outliers, etc
+counts_per_cell = colSums(data)                           # Total counts per cell
+lognorm = log1p(t(t(data) / counts_per_cell) * 10000)     # Counts per 10,000, then log
+
+gene_mean = rowMeans(lognorm)
+gene_var  = apply(lognorm, 1, var)
+trend     = loess(gene_var ~ gene_mean)        # How variance normally follows the mean
+excess    = gene_var - predict(trend)          # Variance above what's expected for that mean
+hvg = names(sort(excess, decreasing = TRUE))[1:200]
+head(hvg, 20)
+
+
+# Sum the counts of all cells per patient -> 2000 genes x 30 patients
+pb = sapply(split(seq_len(ncol(data)), meta$patient), function(i) rowSums(data[, i]))
+pb_group = factor(meta$group[match(colnames(pb), meta$patient)], levels = c("control", "disease"))
+
+library(edgeR)
+dge = DGEList(pb, group = pb_group)
+dge = calcNormFactors(dge)                      # TMM normalisation
+
+keep = filterByExpr(dge, group = pb_group)
+sum(keep)                                        # Number of genes kept
+dge = dge[keep, , keep.lib.sizes = FALSE]
+dge = calcNormFactors(dge)                       # Redo TMM after filtering
+
+plotMDS(dge, col = ifelse(pb_group == "control", "blue", "red"), pch = 16)
+
+logcpm = cpm(dge, log = TRUE)    # genes x 30 patients, log2 CPM
+```
 
 ```{r}
 # 3. Variance vs mean on normalized counts across the cells
@@ -172,3 +211,4 @@ umap_res <- umap(pca_embed,
 plot(umap_res$layout,pch=16,
      cex=0.3,col=cluster,main="UMAP")
 ```
+
