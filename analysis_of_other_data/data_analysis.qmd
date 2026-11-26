@@ -1,0 +1,38 @@
+---
+title: "Untitled"
+format: html
+---
+Library
+```{r}
+library(tidyverse)
+```
+
+Data import
+```{r}
+data <- read.csv2("analysis_of_other_data/scRNAseq_data_updated.csv", sep = ",")
+
+rownames(data) = data[,1]
+
+data <- data[,2:ncol(data)]
+
+```
+
+Transpose and add columns(patient, group, cell_id)
+```{r}
+t_data <- t(data) %>%
+  as.data.frame() %>%
+  mutate(
+    patient = sub("_.*", "", rownames(.)),
+    group   = ifelse(grepl("_control_", rownames(.)), "Control", "Disease"),
+    cell_id = sub(".*_(cell\\d+)$", "\\1", rownames(.))
+  ) %>%
+  relocate(cell_id, patient, group)
+
+head(rownames(t_data)) 
+matrix_t_data <- as.matrix(t_data)
+```
+
+
+```{r}
+Group <- factor(t_data$group, levels = c("Control", "Disease")) # Define groups, we usually want HD first
+```
