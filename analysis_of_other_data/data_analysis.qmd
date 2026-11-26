@@ -163,3 +163,12 @@ km = kmeans(pca_embed, centers = 7, nstart = 200)
 cluster=factor(km$cluster)
 cluster[1:3]
 ```
+
+```{r}
+library(umap)
+set.seed(43)
+umap_res <- umap(pca_embed, 
+                 n_neighbors = 30, min_dist=0.3)
+plot(umap_res$layout,pch=16,
+     cex=0.3,col=cluster,main="UMAP")
+```
