@@ -1,0 +1,24 @@
+"Protein","Type","Effect_NPX"
+"IL-1 beta","Inflammation marker",1.73
+"IL-6","Inflammation marker",2.56
+"IL-8","Inflammation marker",2.48
+"CCL2 (MCP-1)","Inflammation marker",1.66
+"CXCL10 (IP-10)","Inflammation marker",1.98
+"TNF","Inflammation marker",2.04
+"IFN-gamma","Inflammation marker",2.21
+"CRP","Inflammation marker",3.43
+"SAA1","Inflammation marker",4.1
+"Calprotectin","Inflammation marker",2.46
+"CYTX-0466","Biomarker",4
+"CYTX-0515","Biomarker",3
+"CYTX-0641","Biomarker",3
+"CYTX-0304","Biomarker",2
+"CYTX-0297","Biomarker",2
+"CYTX-0301","Biomarker",-4
+"CYTX-0463","Biomarker",-3
+"CYTX-0289","Biomarker",-3
+"CYTX-0008","Biomarker",-2
+"CYTX-0676","Biomarker",-2
+"CYTX-0557","Combination pair (ratio)",0
+"CYTX-0227","Combination pair (ratio)",1
+"IL-17A","Subgroup marker (8 of 30 Disease)",3

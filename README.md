@@ -1,1 +1,2 @@
 # assignment_simulated_data
+We are working on OLINK dataset with two groups - disease and healthy (n=30 in each group). Specific cytokines appear elevated in the disease group. Errors are introduced so one healthy donor is marked as diseased and one diseased is marked as healthy. There are outliers in 10 cytokines. Column Disease assigns disease wrongly - health marked as have disease, diseased marked as no disease.
