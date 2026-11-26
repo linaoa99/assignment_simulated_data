@@ -1,3 +1,4 @@
+
 ---
 title: "Untitled"
 format: html
@@ -35,4 +36,130 @@ matrix_t_data <- as.matrix(t_data)
 
 ```{r}
 Group <- factor(t_data$group, levels = c("Control", "Disease")) # Define groups, we usually want HD first
+```
+
+QC
+
+```{r}
+# QC preparation
+
+# Keep only gene expression columns
+expression_data <- t_data %>%
+  select(-cell_id, -patient, -group)
+
+# Convert expression values to a numeric matrix
+expression_matrix <- as.matrix(
+  data.frame(lapply(expression_data, as.numeric))
+)
+
+# Check dimensions
+dim(expression_matrix)
+
+# Check that expression values are numeric and non-negative
+summary(as.vector(expression_matrix))
+any(is.na(expression_matrix))
+any(expression_matrix < 0)
+```
+
+QC
+```{r}
+# Calculate QC metrics for each cell
+
+qc_data <- data.frame(
+  cell_id = t_data$cell_id,
+  patient = t_data$patient,
+  group = t_data$group,
+
+  total_counts = rowSums(expression_matrix),
+
+  detected_genes = rowSums(expression_matrix > 0),
+
+  percent_zeros = rowMeans(expression_matrix == 0) * 100
+)
+
+# Preview QC results
+head(qc_data)
+
+# Summary statistics
+summary(qc_data)
+```
+
+```{r}
+# Distribution of detected genes
+ggplot(qc_data, aes(x = group, y = detected_genes, fill = group)) +
+  geom_violin(trim = FALSE, alpha = 0.5) +
+  geom_boxplot(width = 0.15, outlier.shape = NA) +
+  labs(
+    title = "Number of detected genes per cell",
+    x = "Group",
+    y = "Number of detected genes"
+  ) +
+  theme_minimal() +
+  theme(legend.position = "none")
+```
+
+
+```{r}
+# Distribution of percentage of zeros
+ggplot(qc_data, aes(x = group, y = percent_zeros, fill = group)) +
+  geom_violin(trim = FALSE, alpha = 0.5) +
+  geom_boxplot(width = 0.15, outlier.shape = NA) +
+  labs(
+    title = "Percentage of zero counts per cell",
+    x = "Group",
+    y = "Percentage of zeros (%)"
+  ) +
+  theme_minimal() +
+  theme(legend.position = "none")
+```
+
+
+```{r}
+# 3. Variance vs mean on normalized counts across the cells
+gene_vars = apply(norm_counts, 1, var) 
+gene_means = apply(norm_counts, 1, mean)
+plot(gene_means,gene_vars,log="xy") 
+
+# --------------------------------------------------------------------------
+
+# 4. Find HVG (the ones with large dispersion)
+# We select for genes with a higher variation than the mean
+
+Dispersion=gene_vars/gene_means
+top2000names = names(sort(Dispersion, decreasing = TRUE))[1:2000]
+points(gene_means[top2000names],gene_vars[top2000names],cex=0.5,col="red")
+log_norm_counts_top2000=log_norm_counts[top2000names,] # Extract top 2000 genes
+dim(log_norm_counts_top2000)
+
+# --------------------------------------------------------------------------
+
+# 5. Scaling (standardize values of HVG)
+scaled_data_top2000 = t(scale(t(log_norm_counts_top2000)))
+scaled_data_top2000[1:4,1:2]
+
+# --------------------------------------------------------------------------
+```
+
+```{r}
+# 6. PCA
+pca_res = prcomp(t(scaled_data_top2000), center = F, scale. = F)
+
+# Plot variance explained
+var_explained = (pca_res$sdev)^2
+var_explained_ratio = var_explained / sum(var_explained)
+# Bar chart of first 100 components
+barplot(var_explained_ratio[1:30],xlab = "PCs",
+        ylab = "Proportion of Variance",
+        col = "skyblue",names.arg = 1:30)
+
+# Extract the 10 first components
+pca_embed = pca_res$x[, 1:10]   # Because we need to use more than two, we choose the first 10 components (standard)
+
+# --------------------------------------------------------------------------
+
+# 7. Clustering with K-means
+# Identify 7 clusters based on the first 10 PCs
+km = kmeans(pca_embed, centers = 7, nstart = 200)
+cluster=factor(km$cluster)
+cluster[1:3]
 ```
