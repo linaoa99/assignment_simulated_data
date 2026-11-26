@@ -5,17 +5,42 @@ format: html
 editor: visual
 ---
 
+Changes made:
+
+- Instead of whole category shifts of cytokines that are upregulated in diseased patients, I went with 10 known cytokines - Making it biologically more plausible and sticking within the 20 univariate biomarker limit as per assignment instructions. Sorry that this oversteps the original idea!
+
+<!-- -->
+
+- Changed which patient is mislabelled, to make it a bit harder to find
+
+- Added a submarker which is unregulated in 8 out of 30 disease patients, to make those stand out in “severity”
+
+- Added a combined marker of two proteins, which require more than univariate analysis
+
+- Made sure the extra markers that were already picked are now from synthetic proteins and not the real ones, to avoid overlap
+
+- Slightly changed the signal from 1.5 to 1.2 for sd_mult because this otherwise was too noisy and didn’t separate well in a PCA, even after removing the outlier. The t-test now also finds all biomarkers without false positives. 
+
+- Some minor cosmetic changes to streamline how it's all coded (like using dis_cols everywhere instead of D_cols and dis_cols in different places)
+
+Hope this is okay!!\
+The output of csv file is below, along with a quick review check and answer key.
+
+//Linnea
+
 ## Assignment Simulated Data
 
 ### 1. Load Cytokine Dataset
 
-```{r Load Cytokine Dataset}
+```{r}
 olink_inflammation_cytokines_1000 = read.csv("olink_inflammation_cytokines_1000.csv")
 ```
 
 ### 2. Simulate values for HD and Disease
 
-```{r Simulation code}
+`Olink-like NPX values (log2 scale). Each protein gets its own baseline level and its own biological variation. Across all proteins and subjects, the values have a mean of about 4 and an SD of about 2.`
+
+```{r}
 
 set.seed(1)
 
@@ -24,111 +49,268 @@ n = 30      # Sample size
 ng = 2      # Number of groups
 p = 1000    # Number of variables
 
-r = rnorm(n*ng*p, mean = 4, sd =2)
+    ## prior code: r = rnorm(n*ng*p, mean = 4, sd =2) 
+    ## split this into mu_p and sd_p in order to get a less uniform distribution of values across the dataset
+
+# Baseline level: some are abundant, some low
+mu_p = rnorm(p, mean = 4, sd = 1.7)
+
+# Biological variation between subjects
+sd_p = runif(p, min = 0.6, max = 1.4)
 
 # Putting data into a matrix
-data = matrix(r, p, n*ng)
-data
+
+    ## prior code: data = matrix(r, p, n*ng) 
+    ## instead combining mu_p and sd_p
+
+data = matrix(0, nrow = p, ncol = n*ng)
+for (i in 1:p){
+  data[i,] = rnorm(n*ng, mean = mu_p[i], sd = sd_p[i])
+}
 
 # Add column and row names to df
 colnames(data) = c(paste("HD", 1:n, sep=""), paste("Disease", 1:n, sep=""))
-rownames(data) = c(paste(olink_inflammation_cytokines_1000$Assay, 1:p, sep=""))
-data
+rownames(data) = olink_inflammation_cytokines_1000$Assay
+head(data)
 
-colnames(data) = c(paste("HD", 1:n, sep=""), paste("Disease", 1:n, sep=""))
-rownames(data) = paste(olink_inflammation_cytokines_1000$Assay, 1:p, sep="")
+# check overall distribution of the data, should be approx mean 4 and sd 2
+mean(data)
+sd(data)
+hist(data, col = "grey", main = "All simulated NPX values", xlab = "NPX")
 
+# columns of each group
 hd_cols  = 1:n
 dis_cols = (n + 1):(n * ng)
 ```
 
-### 3. Introduce outliers and errors
+### 3. Increase SD and values in Disease
 
-#### Increase SD for all Disease and select a certain groups of cytokines to have higher normalized values
+All proteins get a slightly larger SD in the Disease group, leaving patients as more heterogeneous. Ten well-known inflammation markers get higher levels. How much higher depends on each patient's disease severity, so the markers rise together, as inflammatory proteins tend to do. Acute-phase proteins (CRP, SAA1) rise the most.
 
-```{r Increase SD and values in Disease}
+```{r}
 set.seed(2)                                   # separate seed for the manipulation
-cat_vec = olink_inflammation_cytokines_1000$Category
 
-# Mean NPX increase in Disease per category (categories not listed stay at 0)
-cat_shift = c("Chemokine"          = 2.0,
-              "Interleukin"        = 1.5,
-              "Acute phase/innate" = 2.5,
-              "TNF superfamily"    = 1.0)
+# Mean NPX increase in disease per marker (proteins not listed stay at 0)
+marker_shift = c("IL-6"           = 2.5,
+                 "TNF"            = 2.0,
+                 "IL-1 beta"      = 2.0,
+                 "IL-8"           = 2.0,
+                 "CRP"            = 3.5,
+                 "SAA1"           = 3.5,
+                 "Calprotectin"   = 2.5,
+                 "CXCL10 (IP-10)" = 2.0,
+                 "CCL2 (MCP-1)"   = 2.0,
+                 "IFN-gamma"      = 2.0)
+all(names(marker_shift) %in% rownames(data))   # check that names are same
 
-delta = cat_shift[cat_vec]                    # NA for unlisted categories
+delta = marker_shift[rownames(data)]                    # NA for unlisted proteins
 delta[is.na(delta)] = 0
 delta = as.numeric(delta)
 
-# Protein-to-protein variability around the category shift
+# Protein-to-protein variability around the marker shift
 up = delta > 0
 delta[up] = delta[up] + rnorm(sum(up), mean = 0, sd = 0.3)
 
+# Disease severity per patient: 0.5 = mild, 1.5 = severe
+severity = runif(n, min = 0.5, max = 1.5)
 
 # Apply shift + inflate SD in the Disease group
-
-sd_mult = 1.5                    # SD inflation for all Disease values
+sd_mult = 1.2                    # SD inflation for all Disease values 
 
 dis      = data[, dis_cols]
 dis_mean = rowMeans(dis)         # each protein's own disease mean
 
 # Scale deviations around the protein mean (means stay put), then add the shift
-dis = dis_mean + (dis - dis_mean) * sd_mult + delta
+dis = dis_mean + (dis - dis_mean) * sd_mult + outer(delta, severity)
 data[, dis_cols] = dis
 
 # Ground truth for validation
 truth = data.frame(Protein   = rownames(data),
-                   Category  = cat_vec,
                    TrueDelta = delta,
                    Up        = up)
+truth[truth$Up, ]
 
+
+# Used further down in the answer key and review
+inflam      = rownames(data)[up]
+inflam_rows = which(up)
 ```
 
-## 2. Introduce biomarkers and errors
+### 4. Introduce biomarkers and errors
+
+```         
+Besides the univariate biomarkers and the two errors, three things are built in to be harder to find:
+
+-   Combination marker (4.3): 
+Two proteins share a large patient-to-patient variation, so on their own they barely differ between the groups and won't stand out in a volcano plot. Their ratio (their difference on the log2 NPX scale) separates the groups well. It takes a multivariate method, or looking at protein pairs, to find it.
+
+-   Subgroup marker (4.4): 
+IL-17A is strongly raised in only 8 of the 30 Disease patients (an "IL-17-high" disease subtype). Averaged over all disease patients the difference is not very clear, so a t-test is unlikely to flag it after FDR correction, but the subgroup is visible in a boxplot or heatmap.
+
+-   Misdiagnosed patient (4.6):
+The mildest disease patient is labelled as HD. Its inflammation markers are only slightly raised, so it is hard to tell apart from a healthy donor.
+```
 
 ```{r}
-# =====================================================
-# 2. INTRODUCE BIOMARKERS AND ERRORS
-# =====================================================
 
-# 2.1 True diagnosis
+# 4.1 True diagnosis
 group = c(rep("HD", n), rep("Disease", n))
 
-# Columns corresponding to Disease patients
-D_cols = which(group == "Disease")
-
-# 2.2 Introduce 10 biomarkers
+# 4.2 Introduce 10 biomarkers
 n_bio = 10
 
-# Randomly select 10 proteins
-biomarkers = sample(1:p, n_bio)
+# Randomly select 10 proteins among synthetic ones (so they don't overlap with inflammation markers from section 3)
+synthetic = which(olink_inflammation_cytokines_1000$Data_Source == "Synthetic placeholder")
+biomarkers = sample(synthetic, n_bio)
 
 # Effects in Disease group
 fc = c(4, 3, 3, 2, 2, -4, -3, -3, -2, -2)
 
 for (k in 1:n_bio) {
-  data[biomarkers[k], D_cols] =
-    data[biomarkers[k], D_cols] + fc[k]
+  data[biomarkers[k], dis_cols] =
+    data[biomarkers[k], dis_cols] + fc[k]
 }
 
 # Display selected biomarkers
 biomarker_names = rownames(data)[biomarkers]
 biomarker_names
 
-# 2.3 Introduce one outlier patient
-outlier = sample(which(group == "HD"), 1)
+# 4.3 Introduce a combination marker (two proteins whose ratio differs)
+combo = sample(setdiff(synthetic, biomarkers), 2)
+combo_names = rownames(data)[combo]
+
+shared = rnorm(n*ng, mean = 0, sd = 1.8)      # Variation shared by both proteins
+
+data[combo[1],] = mu_p[combo[1]] + shared + rnorm(n*ng, mean = 0, sd = 0.3)
+data[combo[2],] = mu_p[combo[2]] + shared + rnorm(n*ng, mean = 0, sd = 0.3)
+data[combo[2], dis_cols] = data[combo[2], dis_cols] + 1   # Ratio is 2x higher in Disease
+
+combo_names
+
+# 4.4 Introduce a subgroup marker: IL-17A high in 8 of the 30 Disease patients
+sub_marker = "IL-17A"
+sub_marker %in% rownames(data) # check to see it's not misspelled
+
+n_sub = 8
+mildest = dis_cols[which.min(severity)]       # Kept out: this patient gets misdiagnosed in 4.6
+subgroup = sample(setdiff(dis_cols, mildest), n_sub)
+
+data[sub_marker, subgroup] = data[sub_marker, subgroup] + 3
+
+# 4.5 Introduce one outlier patient
+outlier = sample(hd_cols, 1)
 
 data[, outlier] = data[, outlier] + 3
 
-# 2.4 Introduce one misdiagnosed patient
-misdiag = sample(D_cols, 1)
+# 4.6 Introduce one misdiagnosed patient (mildest disease patient)
+misdiag = mildest
 
 group_obs = group
 group_obs[misdiag] = "HD"
 
-# Display the two problematic patients
+# Display the problematic patients
 colnames(data)[outlier]
 colnames(data)[misdiag]
+colnames(data)[subgroup]
 ```
 
-### 4. Review
+### 5. Export dataset
+
+Patients as rows, the group (A/B) as the first column, then the 1000 proteins. The row order is shuffled and the patient names are left out, so the labels can't be guessed.
+
+```{r}
+group_AB = ifelse(group_obs == "HD", "A", "B")   # A = HD, B = Disease
+
+ord = sample(1:(n*ng))                           # Shuffle patient order
+df = data.frame(group = group_AB[ord], t(data)[ord, ], check.names = FALSE)
+write.csv(df, "simulated_dataset.csv", row.names = FALSE)
+
+dim(df)                                          # Should be 60 x 1001
+table(df$group)
+```
+
+### 6. Answer key
+
+Summary of the specifics in the dataset
+
+```{r}
+
+# Proteins with a true difference between the groups
+truth_proteins = data.frame(
+  Protein    = c(inflam, biomarker_names, combo_names, sub_marker),
+  Type       = c(rep("Inflammation marker", length(inflam)),
+                 rep("Biomarker", n_bio),
+                 rep("Combination pair (ratio)", 2),
+                 "Subgroup marker (8 of 30 Disease)"),
+  Effect_NPX = c(round(delta[inflam_rows], 2), fc, 0, 1, 3))  # Inflammation markers: average patient
+# Combination pair: ratio is 2x (1 NPX) higher in Disease
+truth_proteins
+
+# Patients: true group, label in the file and row number in the file
+truth_patients = data.frame(
+  Patient       = colnames(data),
+  True_group    = ifelse(group == "HD", "A", "B"),
+  Label_in_file = group_AB,
+  Row_in_file   = match(1:(n*ng), ord),
+  Outlier       = 1:(n*ng) == outlier,
+  Mislabelled   = group != group_obs,
+  IL17_subgroup = 1:(n*ng) %in% subgroup)
+truth_patients[truth_patients$Outlier | truth_patients$Mislabelled | truth_patients$IL17_subgroup, ]
+
+write.csv(truth_proteins, "answer_key_proteins.csv", row.names = FALSE)
+write.csv(truth_patients, "answer_key_patients.csv", row.names = FALSE)
+```
+
+### 7. Review
+
+Quick checks that the simulation behaves as intended, using the TRUE groups.
+
+```{r}
+# t-tests for all proteins (Welch's t-test, since Disease has a larger SD)
+pval = NULL
+for (i in 1:p){
+  pval[i] = t.test(data[i,] ~ factor(group))$p.value
+}
+hist(pval, col = "grey")
+padj = p.adjust(pval, method = "BH")
+rownames(data)[padj < 0.05]                      # Should be the 20 univariate markers
+
+# Combination pair: weak on their own, strong as a ratio
+padj[combo]
+t.test((data[combo[2],] - data[combo[1],]) ~ factor(group))$p.value
+plot(data[combo[1],], data[combo[2],], col = ifelse(group == "HD", "blue", "red"), pch = 16,
+     xlab = combo_names[1], ylab = combo_names[2], main = "Combination pair")
+
+# Subgroup marker: not significant overall, but 8 patients clearly high
+padj[rownames(data) == sub_marker]
+stripchart(data[sub_marker,] ~ factor(group, levels = c("HD", "Disease")), vertical = TRUE,
+           method = "jitter", pch = 16, col = c("blue", "red"), 
+           ylab = paste(sub_marker, "(NPX)"))
+
+# PCA: the two groups should separate
+pca = prcomp(t(data))
+plot(pca$x[,1], pca$x[,2], col = ifelse(group == "HD", "blue", "red"), pch = 16,
+     xlab = "PC1", ylab = "PC2", main = "True groups (blue = HD, red = Disease)")
+
+# PCA without the outlier: the mislabelled patient (black ring) sits among the disease patients
+pca2 = prcomp(t(data[, -outlier]))
+plot(pca2$x[,1], pca2$x[,2], col = ifelse(group[-outlier] == "HD", "blue", "red"), pch = 16,
+     xlab = "PC1", ylab = "PC2", main = "Without the outlier")
+points(pca2$x[colnames(data)[misdiag],1], pca2$x[colnames(data)[misdiag],2], cex = 2)
+
+# Sample boxplots: the outlier patient should stand out
+boxplot(data, las = 2, cex.axis = 0.6, outline = FALSE,
+        col = ifelse(1:(n*ng) == outlier, "red", "grey"))
+
+# What the other group will see: CRP by the labels in the file
+# The mislabelled patient (red point) does NOT stand out on CRP alone
+boxplot(data["CRP",] ~ group_AB, col = c("lightblue", "salmon"),
+        xlab = "Label in file (A = HD, B = Disease)", ylab = "CRP (NPX)")
+points(1, data["CRP", misdiag], col = "red", pch = 16)
+
+# ...but it does on the combined inflammation markers (mean of the 10 markers)
+inflam_score = colMeans(data[inflam_rows, -outlier])
+boxplot(inflam_score ~ group_AB[-outlier], col = c("lightblue", "salmon"),
+        xlab = "Label in file (A = HD, B = Disease)", ylab = "Mean of inflammation markers (NPX)")
+points(1, inflam_score[colnames(data)[misdiag]], col = "red", pch = 16)
+```
