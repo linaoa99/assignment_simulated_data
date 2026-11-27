@@ -1,7 +1,8 @@
 
 ---
-title: "data_analysis"
-author: "Lina, Ndeye Awa, Eva, Eleni, Linnea"
+title: "Report"
+author: "Eva"
+c-author: "Lina, Ndeye Awa, Eva, Eleni, Linnea"
 format: html
 ---
 
@@ -21,7 +22,7 @@ library(umap)
 
 ```{r}
 
-data_org <- read.csv2("analysis_of_other_data/scRNAseq_data_updated.csv", sep = ",")
+data_org <- read.csv2("/Users/evarog/Library/CloudStorage/OneDrive-KarolinskaInstitutet/03_Courses/2611_biostatistics/assignment/assignment_simulated_data/analysis_of_other_data/scRNAseq_data_updated.csv", sep = ",")
 
 data <- data_org
 rownames(data) = data_org[,1]
@@ -332,3 +333,6 @@ pheatmap(logcpm[rownames(sigRes), ], scale = "row",
          main = "Significant genes, all 30 subjects (z-score per gene)")
 ```
 
+## Personal reflection:
+
+Through this course, I gained practical experience in analysing high-dimensional biological data using a structured and reproducible workflow. Working with single-cell RNA-sequencing data strengthened my understanding of essential analytical steps, including quality control, normalization, dimensionality reduction, clustering, and differential expression analysis.These skills are directly relevant to my PhD project, where I work with large immunological datasets generated from vaccine studies. In particular, the course highlighted the importance of thoroughly assessing data quality before drawing biological conclusions and using exploratory analyses to identify patterns, sources of variation, or potential anomalies in the data. I also learned how different normalization and statistical approaches can influence the interpretation of results and the importance of selecting appropriate methods for a given dataset.Although my current research is primarily focused on B cell responses, antibody repertoires, and immune profiling following malaria vaccination, the principles learned in this course are broadly applicable to many types of high-throughput biological data. The course has increased my confidence in handling large datasets, performing reproducible analyses in R, and critically evaluating results. These skills will support both the analysis of my current research data and future collaborations involving advanced computational and systems immunology approaches.
